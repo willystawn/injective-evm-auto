@@ -1,0 +1,23 @@
+{
+  "name": "injective-winj-test",
+  "version": "1.0.0",
+  "description": "Automated testnet interaction bot for Injective EVM.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "injective",
+    "testnet",
+    "bot",
+    "ethers"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.0.1",
+    "ethers": "^6.15.0"
+  }
+}
