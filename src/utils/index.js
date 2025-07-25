@@ -1,12 +1,16 @@
 // src/utils/index.js
 
+const randomUseragent = require('random-useragent');
+
 const getTimestamp = () => new Date().toISOString();
 
 const logger = {
   info: (msg) => console.log(`[${getTimestamp()}] [INFO] ${msg}`),
-  success: (msg) => console.log(`[${getTimestamp()}] [✅ SUCCESS] ${msg}`),
-  error: (msg) => console.error(`[${getTimestamp()}] [❌ ERROR] ${msg}`),
-  header: (msg) => console.log(`\n==================== ${msg} ====================\n`),
+  success: (msg) => console.log(`[${getTimestamp()}] [SUCCESS] ${msg}`),
+  error: (msg) => console.error(`[${getTimestamp()}] [ERROR] ${msg}`),
+  header: (msg) => console.log(`
+==================== ${msg} ====================
+`),
 };
 
 /**
@@ -37,4 +41,13 @@ const getRandomFloatString = (min, max, precision) => {
   return (Math.random() * (max - min) + min).toFixed(precision);
 };
 
-module.exports = { logger, delay, getRandomInt, getRandomFloatString };
+/**
+ * Generates a random user-agent string.
+ * @returns {string} A random user-agent string.
+ */
+const getRandomUserAgent = () => {
+    return randomUseragent.getRandom();
+};
+
+
+module.exports = { logger, delay, getRandomInt, getRandomFloatString, getRandomUserAgent };
