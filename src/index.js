@@ -19,7 +19,7 @@ const INSUFFICIENT_FUNDS_DELAY_MS = 60 * 60 * 1000; // 1 hour if tokens are depl
 async function main() {
   logger.header("🚀 STARTING INJECTIVE HUMANIZED BOT 🚀");
 
-  const privateKey = process.env.TESTNET_PRIVATE_KEYS;
+  const privateKey = process.env.TESTNET_PRIVATE_KEY;
   if (!privateKey) {
     logger.error("TESTNET_PRIVATE_KEY is not set in the .env file. Exiting.");
     process.exit(1);
