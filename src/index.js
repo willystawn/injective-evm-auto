@@ -19,7 +19,7 @@ const INSUFFICIENT_FUNDS_DELAY_MS = 60 * 60 * 1000; // 1 hour if tokens are depl
 async function main() {
   logger.header("🚀 STARTING INJECTIVE HUMANIZED BOT 🚀");
 
-  const privateKey = process.env.TESTNET_PRIVATE_KEY;
+  const privateKey = process.env.TESTNET_PRIVATE_KEYS;
   if (!privateKey) {
     logger.error("TESTNET_PRIVATE_KEY is not set in the .env file. Exiting.");
     process.exit(1);
@@ -57,7 +57,11 @@ async function main() {
       if (errorMessage.includes("insufficient funds")) {
         logger.error("Detected insufficient funds. Pausing for 1 hour...");
         await delay(INSUFFICIENT_FUNDS_DELAY_MS);
-      } else {
+      } else if (error.code === 'SERVER_ERROR' || errorMessage.includes('503') || errorMessage.includes('service temporarily unavailable')) {
+        logger.error(`RPC Service Unavailable or Server Error. Pausing for ${ERROR_DELAY_MS / 1000 / 60} minutes before retrying...`);
+        await delay(ERROR_DELAY_MS);
+      }
+      else {
         logger.error(`An unexpected error occurred. Pausing for ${ERROR_DELAY_MS / 1000 / 60} minutes before retrying...`);
         await delay(ERROR_DELAY_MS);
       }
