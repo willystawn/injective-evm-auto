@@ -2,7 +2,7 @@
 
 const { ethers } = require('ethers');
 const { injectiveConfig } = require('../config');
-const { logger, getRandomFloatString } = require('../utils');
+const { logger, getRandomFloatString, withRetry } = require('../utils');
 
 /**
  * Executes a single, randomized test sequence for WINJ.
@@ -14,26 +14,31 @@ async function runTestSequence(wallet) {
   const winjContract = new ethers.Contract(injectiveConfig.winjContractAddress, injectiveConfig.winjAbi, wallet);
 
   logger.info(`Using Wallet: ${wallet.address}`);
-  logger.info(`WINJ Contract Address: ${await winjContract.getAddress()}`);
+  const contractAddress = await withRetry(() => winjContract.getAddress(), 3, 1000, 'getContractAddress');
+  logger.info(`WINJ Contract Address: ${contractAddress}`);
   
   const logBalances = async (walletAddress, message) => {
     try {
-      const injBalance = await provider.getBalance(walletAddress);
-      const winjBalance = await winjContract.balanceOf(walletAddress);
+      // Use withRetry for balance checks
+      const injBalance = await withRetry(() => provider.getBalance(walletAddress), 3, 1000, `getBalance (${message})`);
+      const winjBalance = await withRetry(() => winjContract.balanceOf(walletAddress), 3, 1000, `getBalanceOf (${message})`);
+      
       logger.info(`--- Balance Check: ${message} ---`);
       logger.info(`Address : ${walletAddress}`);
       logger.info(`INJ Balance: ${ethers.formatEther(injBalance)} INJ`);
       logger.info(`WINJ Balance: ${ethers.formatEther(winjBalance)} WINJ`);
       logger.info(`--------------------------------------`);
     } catch (e) {
-      logger.error(`Failed to check balance for ${walletAddress}: ${e.message}`);
+      // Log the error but don't crash the sequence, as this is a logging function.
+      logger.error(`Failed to check balance for ${walletAddress} (${message}): ${e.message}`);
     }
   };
 
   // === STEP 1: CHECK INITIAL BALANCES ===
   await logBalances(wallet.address, "Initial State");
   
-  const initialInjBalance = await provider.getBalance(wallet.address);
+  // This balance check is critical, so we wrap it and let it throw on failure
+  const initialInjBalance = await withRetry(() => provider.getBalance(wallet.address), 3, 1500, 'initialGetBalance');
   if (initialInjBalance < ethers.parseEther('0.05')) { // Minimum balance check
     throw new Error("Insufficient funds to start the cycle. INJ balance is too low.");
   }
@@ -45,10 +50,11 @@ async function runTestSequence(wallet) {
   logger.info(`>>> STEP 2: Depositing (wrapping) a random amount of ${randomAmountWrapStr} INJ to WINJ...`);
   
   try {
-    const txDeposit = await winjContract.deposit({ value: amountToWrap });
+    // Wrap the transaction sending and waiting with retry logic
+    const txDeposit = await withRetry(() => winjContract.deposit({ value: amountToWrap }), 3, 2000, 'deposit');
     logger.info(`Deposit transaction sent. Hash: ${txDeposit.hash}`);
     logger.info(`View on Explorer: ${injectiveConfig.explorerUrl}/tx/${txDeposit.hash}`);
-    await txDeposit.wait();
+    await withRetry(() => txDeposit.wait(), 3, 5000, 'deposit.wait');
     logger.success("Deposit completed successfully.");
   } catch (err) {
     logger.error(`Deposit failed: ${err.message}`);
@@ -67,10 +73,10 @@ async function runTestSequence(wallet) {
   logger.info(`Recipient Address: ${recipientAddress}`);
 
   try {
-    const txTransfer = await winjContract.transfer(recipientAddress, amountToTransfer);
+    const txTransfer = await withRetry(() => winjContract.transfer(recipientAddress, amountToTransfer), 3, 2000, 'transfer');
     logger.info(`Transfer transaction sent. Hash: ${txTransfer.hash}`);
     logger.info(`View on Explorer: ${injectiveConfig.explorerUrl}/tx/${txTransfer.hash}`);
-    await txTransfer.wait();
+    await withRetry(() => txTransfer.wait(), 3, 5000, 'transfer.wait');
     logger.success("Transfer completed successfully.");
   } catch (err) {
     logger.error(`Transfer failed: ${err.message}`);
@@ -81,7 +87,7 @@ async function runTestSequence(wallet) {
   // === STEP 4: WITHDRAW A SMALL, RANDOM AMOUNT OF WINJ ===
   logger.info(">>> STEP 4: Withdrawing a small, random amount of WINJ back to INJ...");
   try {
-    const currentWinjBalance = await winjContract.balanceOf(wallet.address);
+    const currentWinjBalance = await withRetry(() => winjContract.balanceOf(wallet.address), 3, 1000, 'getBalanceForWithdraw');
     if (currentWinjBalance === 0n) {
         logger.info("No WINJ balance to withdraw. Skipping withdrawal.");
         return; // Exit the function if there is no balance
@@ -96,10 +102,10 @@ async function runTestSequence(wallet) {
       const amountToWithdrawStr = ethers.formatEther(amountToWithdraw);
       logger.info(`Current WINJ balance is ${ethers.formatEther(currentWinjBalance)}. Attempting to withdraw ~${(withdrawPortion*100).toFixed(0)}% (${amountToWithdrawStr} WINJ).`);
       
-      const txWithdraw = await winjContract.withdraw(amountToWithdraw);
+      const txWithdraw = await withRetry(() => winjContract.withdraw(amountToWithdraw), 3, 2000, 'withdraw');
       logger.info(`Withdraw transaction sent. Hash: ${txWithdraw.hash}`);
       logger.info(`View on Explorer: ${injectiveConfig.explorerUrl}/tx/${txWithdraw.hash}`);
-      await txWithdraw.wait();
+      await withRetry(() => txWithdraw.wait(), 3, 5000, 'withdraw.wait');
       logger.success("Partial withdraw completed successfully.");
 
     } else {

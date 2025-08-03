@@ -49,5 +49,34 @@ const getRandomUserAgent = () => {
     return randomUseragent.getRandom();
 };
 
+/**
+ * Retries an async function with exponential backoff.
+ * @param {Function} asyncFn - The async function to retry.
+ * @param {number} maxRetries - The maximum number of retries.
+ * @param {number} delayMs - The initial delay in milliseconds.
+ * @param {string} operationName - A descriptive name for the operation being retried.
+ * @returns {Promise<any>} The result of the async function if successful.
+ */
+const withRetry = async (asyncFn, maxRetries = 3, delayMs = 1000, operationName = 'operation') => {
+  let lastError;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await asyncFn();
+    } catch (error) {
+      lastError = error;
+      if (error.message.includes('503')) {
+        const waitTime = delayMs * Math.pow(2, i);
+        logger.error(`[${operationName}] Attempt ${i + 1}/${maxRetries} failed with 503 error. Retrying in ${waitTime / 1000}s...`);
+        await delay(waitTime);
+      } else {
+        // Don't retry on other errors
+        throw error;
+      }
+    }
+  }
+  logger.error(`[${operationName}] All ${maxRetries} retries failed.`);
+  throw lastError;
+};
 
-module.exports = { logger, delay, getRandomInt, getRandomFloatString, getRandomUserAgent };
+
+module.exports = { logger, delay, getRandomInt, getRandomFloatString, getRandomUserAgent, withRetry };
