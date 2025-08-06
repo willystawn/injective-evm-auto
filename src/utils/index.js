@@ -61,21 +61,35 @@ const withRetry = async (asyncFn, maxRetries = 3, delayMs = 1000, operationName 
   let lastError;
   for (let i = 0; i < maxRetries; i++) {
     try {
+      // Attempt to execute the function
       return await asyncFn();
     } catch (error) {
       lastError = error;
-      if (error.message.includes('503')) {
-        const waitTime = delayMs * Math.pow(2, i);
-        logger.error(`[${operationName}] Attempt ${i + 1}/${maxRetries} failed with 503 error. Retrying in ${waitTime / 1000}s...`);
+      const errorMessage = error.message ? error.message.toLowerCase() : '';
+
+      // Define what constitutes a retryable error.
+      // Ethers.js provides specific error codes for transient issues.
+      const isRetryable =
+        error.code === 'SERVER_ERROR' ||
+        error.code === 'NETWORK_ERROR' ||
+        error.code === 'TIMEOUT' ||
+        errorMessage.includes('503') ||
+        errorMessage.includes('service temporarily unavailable');
+
+      if (isRetryable) {
+        const waitTime = delayMs * Math.pow(2, i); // Exponential backoff
+        logger.error(`[${operationName}] Attempt ${i + 1}/${maxRetries} failed with a retryable error (${error.code || 'N/A'}). Retrying in ${waitTime / 1000}s...`);
         await delay(waitTime);
       } else {
-        // Don't retry on other errors
+        // If the error is not retryable (e.g., "insufficient funds"), throw it immediately.
         throw error;
       }
     }
   }
+
+  // If the loop completes, all retries have failed.
   logger.error(`[${operationName}] All ${maxRetries} retries failed.`);
-  throw lastError;
+  throw lastError; // Throw the last error that occurred.
 };
 
 
